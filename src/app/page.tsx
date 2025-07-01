@@ -1,103 +1,178 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DriverImage } from "@/components/driver-image";
+import { TeamLogo } from "@/components/team-logo";
+import { ApiService, type F1Driver } from "@/services/api";
+import { getDriverAge } from "@/utils/driver-data";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [drivers, setDrivers] = useState<F1Driver[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    async function fetchDrivers() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await ApiService.fetchDrivers();
+        setDrivers(data.drivers);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch drivers');
+        console.error('Error fetching drivers:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDrivers();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Formula 1 Drivers</h1>
+          <p className="text-muted-foreground text-lg">
+            Loading the latest F1 driver data from OpenF1 API...
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(20)].map((_, i) => (
+            <Card key={i} className="overflow-hidden animate-pulse">
+              <div className="h-64 bg-gray-200" />
+              <CardHeader>
+                <div className="h-6 bg-gray-200 rounded mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-3/4" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded" />
+                  <div className="h-4 bg-gray-200 rounded w-2/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Formula 1 Drivers</h1>
+          <p className="text-muted-foreground text-lg">
+            Unable to load driver data
+          </p>
+        </div>
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Data</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold mb-2">Formula 1 Drivers</h1>
+        <p className="text-muted-foreground text-lg">
+          {drivers.length} drivers competing in the current F1 season (Live data from OpenF1)
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {drivers.map((driver) => (
+          <Card 
+            key={driver.driver_number} 
+            className="overflow-hidden hover:shadow-xl transition-all duration-300 ease-out hover:scale-[1.02] hover:-translate-y-1 group will-change-transform"
+            style={{ 
+              borderTopColor: `#${driver.team_colour}`, 
+              borderTopWidth: '4px',
+              boxShadow: `0 4px 12px rgba(${parseInt(driver.team_colour?.slice(0,2) || 'FF', 16)}, ${parseInt(driver.team_colour?.slice(2,4) || '1E', 16)}, ${parseInt(driver.team_colour?.slice(4,6) || '1E', 16)}, 0.15)`
+            }}
+          >
+            <DriverImage 
+              src={driver.headshot_url || driver.image}
+              alt={driver.full_name}
+              number={driver.driver_number}
+              driverName={driver.full_name}
+              teamColor={driver.team_colour}
+              countryCode={driver.country_code}
+            />
+            
+            <CardHeader className="pb-4 transition-all duration-200 ease-out">
+              <CardTitle className="text-lg font-bold">{driver.full_name}</CardTitle>
+              <CardDescription className="text-sm">
+                {driver.name_acronym} • {driver.team_name}
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Number</span>
+                    <span className="font-bold text-lg">#{driver.driver_number}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Age</span>
+                    <span className="font-medium">{getDriverAge(driver.full_name)} years</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Team Color</span>
+                    <div 
+                      className="w-6 h-6 rounded-full border-2 border-gray-300"
+                      style={{ backgroundColor: `#${driver.team_colour}` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Broadcast</span>
+                    <span className="font-medium text-xs">{driver.broadcast_name}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 transition-all duration-200 ease-out">
+                <div className="text-center">
+                  <div className="flex items-center justify-center transition-transform duration-200 ease-out group-hover:scale-105">
+                    <TeamLogo 
+                      teamName={driver.team_name} 
+                      size="sm" 
+                      showName={true}
+                      teamColor={driver.team_colour}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    {driver.first_name} {driver.last_name}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {drivers.length === 0 && !loading && !error && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-lg">No drivers data available</p>
+        </div>
+      )}
     </div>
   );
 }
