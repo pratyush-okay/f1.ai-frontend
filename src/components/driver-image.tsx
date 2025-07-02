@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { getDriverImagePath, getTeamGradient, hasLocalDriverImage } from "@/utils/driver-images";
-import { getCountryFlag, getDriverAge } from "@/utils/driver-data";
+import { getCountryFlag } from "@/utils/driver-data";
 
 interface DriverImageProps {
   src: string;
@@ -22,10 +22,18 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
   const imageSrc = useLocalImage ? getDriverImagePath(driverName) : src;
   const backgroundGradient = getTeamGradient(teamColor || '');
   const countryFlag = getCountryFlag(number); // Use driver number instead of countryCode
-  const driverAge = getDriverAge(driverName);
   
   // Debug logging to see what data we're getting
-  console.log('Driver data:', { driverName, number, countryCode, teamColor, countryFlag, driverAge });
+  console.log('Driver Image Debug:', { 
+    driverName, 
+    number, 
+    countryCode, 
+    teamColor, 
+    useLocalImage,
+    imageSrc,
+    hasLocalImage: hasLocalDriverImage(driverName),
+    originalSrc: src
+  });
 
   return (
     <div 
@@ -34,15 +42,13 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
         background: backgroundGradient
       }}
     >
-      {/* Optimized background racing number */}
+      {/* Background racing number */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div 
-          className="text-[12rem] font-black select-none transform -rotate-12 opacity-15 transition-all duration-300 ease-out group-hover:opacity-40 group-hover:scale-105"
+          className="text-[12rem] font-black select-none transform -rotate-12 opacity-30 transition-all duration-300 ease-out group-hover:opacity-50 group-hover:scale-105"
           style={{
-            background: `linear-gradient(45deg, #${teamColor || 'FF1E1E'}, #${teamColor || 'FF1E1E'}cc)`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
+            color: `rgba(255, 255, 255, 0.6)`,
+            textShadow: `0 0 40px rgba(${parseInt(teamColor?.slice(0,2) || 'FF', 16)}, ${parseInt(teamColor?.slice(2,4) || '1E', 16)}, ${parseInt(teamColor?.slice(4,6) || '1E', 16)}, 0.3)`,
             willChange: 'transform, opacity'
           }}
         >

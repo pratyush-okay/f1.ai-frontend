@@ -64,6 +64,36 @@ export interface DriverStandingsResponse {
   drivers_championship: DriverStanding[];
 }
 
+export interface F1Team {
+  team_id: string;
+  team_name: string;
+  team_nationality: string;
+  first_appearance: number;
+  constructors_championships: number | null;
+  drivers_championships: number | null;
+  url: string;
+}
+
+export interface TeamsResponse {
+  message: string;
+  teams: F1Team[];
+}
+
+export interface ConstructorStanding {
+  classification_id: number;
+  team_id: string;
+  season: number;
+  championship_id: string;
+  points: number;
+  position: number;
+  wins: number | null;
+}
+
+export interface ConstructorStandingsResponse {
+  message: string;
+  standings: ConstructorStanding[];
+}
+
 export class ApiService {
   static async fetchDrivers(): Promise<DriversResponse> {
     try {
@@ -110,6 +140,38 @@ export class ApiService {
     } catch (error) {
       console.error(`Error fetching driver ${driverNumber}:`, error);
       throw new Error(`Failed to fetch driver ${driverNumber} from API`);
+    }
+  }
+
+  static async fetchTeams(): Promise<TeamsResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/teams`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      throw new Error('Failed to fetch teams from API');
+    }
+  }
+
+  static async fetchConstructorStandings(): Promise<ConstructorStandingsResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/teams-standings`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching constructor standings:', error);
+      throw new Error('Failed to fetch constructor standings from API');
     }
   }
 } 
