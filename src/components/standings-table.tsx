@@ -55,7 +55,7 @@ export function StandingsTable({ maxRows, compact = false }: StandingsTableProps
   return (
     <Card className="bg-black/40 border-gray-800 backdrop-blur-sm">
       <div className="p-4 border-b border-gray-800">
-        <h3 className="font-semibold text-white text-lg flex items-center gap-2">
+        <h3 className="font-semibold text-white text-lg flex items-center gap-2 font-orbitron">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400">
             🏆
           </span>

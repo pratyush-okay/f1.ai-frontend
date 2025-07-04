@@ -28,6 +28,7 @@ const driverNationalities: Record<number, string> = {
 const countryFlags: Record<string, string> = {
   'Netherlands': '🇳🇱',
   'United Kingdom': '🇬🇧',
+  'Great Britain': '🇬🇧',  // API variant
   'Brazil': '🇧🇷',
   'France': '🇫🇷',
   'Australia': '🇦🇺',
@@ -35,6 +36,7 @@ const countryFlags: Record<string, string> = {
   'Canada': '🇨🇦',
   'Monaco': '🇲🇨',
   'Italy': '🇮🇹',
+  'Italian': '🇮🇹',    // API variant
   'Japan': '🇯🇵',
   'Thailand': '🇹🇭',
   'Germany': '🇩🇪',

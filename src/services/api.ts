@@ -72,6 +72,16 @@ export interface F1Team {
   constructors_championships: number | null;
   drivers_championships: number | null;
   url: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EnrichedF1Team extends F1Team {
+  championship_position?: number;
+  championship_points?: number;
+  wins?: number | null;
+  team_colour?: string;
+  base?: string;
 }
 
 export interface TeamsResponse {
@@ -87,6 +97,8 @@ export interface ConstructorStanding {
   points: number;
   position: number;
   wins: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ConstructorStandingsResponse {

@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TeamLogo } from "@/components/team-logo";
-import { ApiService, type F1Team, type ConstructorStandingsResponse } from "@/services/api";
+import { TeamImage } from "@/components/team-image";
+import { TeamStandingsTable } from "@/components/team-standings-table";
+import { ApiService, type F1Team, type EnrichedF1Team, type ConstructorStanding, type F1Driver } from "@/services/api";
+import { teams } from "@/data/f1-data";
 
 export default function TeamsPage() {
-  const [teams, setTeams] = useState<F1Team[]>([]);
-  const [standings, setStandings] = useState<ConstructorStandingsResponse | null>(null);
+  const [enrichedTeams, setEnrichedTeams] = useState<EnrichedF1Team[]>([]);
+  const [drivers, setDrivers] = useState<F1Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,17 +20,40 @@ export default function TeamsPage() {
         setLoading(true);
         setError(null);
         
-        // Fetch both teams and constructor standings data
-        const [teamsData, standingsData] = await Promise.all([
+        // Fetch teams, standings, and drivers data
+        const [teamsData, standingsData, driversData] = await Promise.all([
           ApiService.fetchTeams(),
-          ApiService.fetchConstructorStandings()
+          ApiService.fetchConstructorStandings(),
+          ApiService.fetchDrivers()
         ]);
+
+        setDrivers(driversData.drivers);
+
+        // Merge teams with standings and static data
+        const enriched = teamsData.teams.map((team: F1Team) => {
+          const standing = standingsData.standings.find((s: ConstructorStanding) => s.team_id === team.team_id);
+          const staticTeam = teams.find(t => 
+            t.name.toLowerCase().includes(team.team_name.toLowerCase()) ||
+            team.team_name.toLowerCase().includes(t.name.toLowerCase())
+          );
+
+          return {
+            ...team,
+            championship_position: standing?.position,
+            championship_points: standing?.points,
+            wins: standing?.wins,
+            team_colour: staticTeam?.color.replace('#', ''),
+            base: getTeamBase(team.team_name, team.team_nationality)
+          };
+        });
+
+        // Sort by championship position
+        enriched.sort((a, b) => (a.championship_position || 999) - (b.championship_position || 999));
         
-        setTeams(teamsData.teams);
-        setStandings(standingsData);
+        setEnrichedTeams(enriched);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
-        console.error('Error fetching data:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -36,42 +62,70 @@ export default function TeamsPage() {
     fetchData();
   }, []);
 
-  const getTeamStanding = (teamId: string) => {
-    return standings?.standings.find(s => s.team_id === teamId);
+  // Get team drivers
+  const getTeamDrivers = (teamName: string): string[] => {
+    return drivers
+      .filter(driver => driver.team_name === teamName)
+      .map(driver => driver.full_name);
   };
 
-  const getPositionColor = (position: number) => {
-    if (position === 1) return 'bg-yellow-500 text-yellow-900';
-    if (position === 2) return 'bg-gray-400 text-gray-900';
-    if (position === 3) return 'bg-amber-600 text-amber-900';
-    return 'bg-blue-600 text-white';
+  // Get team color from f1-data.ts
+  const getTeamColor = (teamName: string): string => {
+    const team = teams.find(t => 
+      t.name.toLowerCase().includes(teamName.toLowerCase()) ||
+      teamName.toLowerCase().includes(t.name.toLowerCase())
+    );
+    return team?.color.replace('#', '') || 'FF1E1E';
+  };
+
+  // Get team base location
+  const getTeamBase = (teamName: string, nationality: string): string => {
+    const baseMap: Record<string, string> = {
+      'McLaren Formula 1 Team': 'Woking, United Kingdom',
+      'Scuderia Ferrari': 'Maranello, Italy',
+      'Mercedes Formula 1 Team': 'Brackley, United Kingdom',
+      'Red Bull Racing': 'Milton Keynes, United Kingdom',
+      'Williams Racing': 'Grove, United Kingdom',
+      'RB F1 Team': 'Faenza, Italy',
+      'Haas F1 Team': 'Kannapolis, United States',
+      'Aston Martin F1 Team': 'Silverstone, United Kingdom',
+      'Sauber F1 Team': 'Hinwil, Switzerland',
+      'Alpine F1 Team': 'Enstone, United Kingdom'
+    };
+
+    return baseMap[teamName] || nationality;
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Formula 1 Teams</h1>
-          <p className="text-muted-foreground text-lg">
-            Loading the latest F1 team data and constructor standings...
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(10)].map((_, i) => (
-            <Card key={i} className="overflow-hidden animate-pulse">
-              <div className="h-3 bg-gray-200 w-full" />
-              <CardHeader>
-                <div className="h-6 bg-gray-200 rounded mb-2" />
-                <div className="h-4 bg-gray-200 rounded w-3/4" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded" />
-                  <div className="h-4 bg-gray-200 rounded w-2/3" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      <div className="min-h-screen bg-black py-8">
+        <div className="container mx-auto px-4">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Teams</h1>
+            <p className="text-gray-400 text-lg">
+              Loading team data...
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i} className="overflow-hidden bg-black/40 border-gray-800 backdrop-blur-sm animate-pulse">
+                    <div className="h-64 bg-gray-800/50" />
+                    <div className="p-6 space-y-4">
+                      <div className="h-4 bg-gray-800/50 rounded w-3/4" />
+                      <div className="h-4 bg-gray-800/50 rounded w-1/2" />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+            <div className="lg:col-span-1">
+              <div className="sticky top-24">
+                <div className="h-96 bg-gray-800/50 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -79,119 +133,132 @@ export default function TeamsPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Formula 1 Teams</h1>
-          <p className="text-muted-foreground text-lg">
-            Unable to load team data
-          </p>
-        </div>
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Data</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-black py-8">
+        <div className="container mx-auto px-4">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Teams</h1>
+            <p className="text-gray-400 text-lg">
+              Unable to load team data
+            </p>
+          </div>
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Error Loading Data</h2>
+            <p className="text-gray-400 mb-4">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Formula 1 Teams</h1>
-        <p className="text-muted-foreground text-lg">
-          All 10 constructors competing in the 2025 Formula 1 World Championship • Live standings
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {teams.map((team) => {
-          const standing = getTeamStanding(team.team_id);
-          return (
-          <Card key={team.team_id} className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-105 relative">
-            {/* Championship Position Badge */}
-            {standing?.position && (
-              <div className={`absolute top-4 right-4 z-10 px-3 py-1 rounded-full text-sm font-bold ${getPositionColor(standing.position)} shadow-lg`}>
-                P{standing.position}
-              </div>
-            )}
-
-            <div 
-              className="h-3 w-full bg-gradient-to-r from-blue-500 to-red-500"
-            />
-            
-            <CardHeader className="pb-4">
-              <div className="flex items-center space-x-3 mb-2">
-                <TeamLogo 
-                  teamName={team.team_name} 
-                  size="md" 
-                  showName={false}
-                />
-                <CardTitle className="text-lg font-bold">{team.team_name}</CardTitle>
-              </div>
-              <CardDescription className="text-sm">
-                {team.team_nationality}
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">First Entry</span>
-                  <span className="font-medium">{team.first_appearance}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Current Points</span>
-                  <span className="font-bold text-green-600">{standing?.points || 0}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-muted-foreground">Current Wins</span>
-                  <span className="font-medium text-yellow-600">{standing?.wins || 0}</span>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <div className="text-lg font-bold text-primary">{team.constructors_championships || 0}</div>
-                    <div className="text-xs text-muted-foreground">Constructor Titles</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-primary">{team.drivers_championships || 0}</div>
-                    <div className="text-xs text-muted-foreground">Driver Titles</div>
-                  </div>
-                </div>
-              </div>
-
-              {team.url && (
-                <div className="border-t pt-4">
-                  <a 
-                    href={team.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 text-sm underline"
-                  >
-                    Learn more →
-                  </a>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          );
-        })}
-      </div>
-
-      {teams.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">No teams data available</p>
+    <div className="min-h-screen bg-black py-8">
+      <div className="container mx-auto px-4">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Teams</h1>
+          <p className="text-gray-400 text-lg">
+            {enrichedTeams.length} teams competing in the current F1 season
+          </p>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Main content area - Team cards */}
+          <div className="lg:col-span-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {enrichedTeams.map((team) => (
+                <Card 
+                  key={team.team_id} 
+                  className="overflow-hidden hover:shadow-xl transition-all duration-300 ease-out hover:scale-[1.02] group will-change-transform relative bg-black border-gray-800 backdrop-blur-sm"
+                  style={{ 
+                    borderTopColor: `#${getTeamColor(team.team_name)}`,
+                    borderTopWidth: '4px',
+                    boxShadow: `0 4px 12px rgba(${parseInt(getTeamColor(team.team_name).slice(0,2) || 'FF', 16)}, ${parseInt(getTeamColor(team.team_name).slice(2,4) || '1E', 16)}, ${parseInt(getTeamColor(team.team_name).slice(4,6) || '1E', 16)}, 0.15)`
+                  }}
+                >
+                  {/* Championship Position Badge */}
+                  {team.championship_position && (
+                    <div className="absolute top-4 left-4 z-10 px-3 py-1 rounded-full text-sm font-bold bg-gray-800/50 text-gray-400 shadow-lg">
+                      P{team.championship_position}
+                    </div>
+                  )}
+
+                  <TeamImage 
+                    teamName={team.team_name}
+                    teamColor={getTeamColor(team.team_name)}
+                    position={team.championship_position}
+                    drivers={getTeamDrivers(team.team_name)}
+                  />
+                  
+                  <CardHeader className="pb-2 text-center">
+                    <CardTitle className="text-lg font-bold text-white group-hover:text-red-500 transition-colors">
+                      {team.team_name}
+                    </CardTitle>
+                    <CardDescription className="text-gray-400 text-sm flex items-center justify-center gap-2">
+                      <span>{team.base}</span>
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">Points</div>
+                        <div className="font-mono text-xl font-bold text-green-400">
+                          {team.championship_points || 0}
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">Wins</div>
+                        <div className="font-mono text-xl font-bold text-yellow-400">
+                          {team.wins || 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">Constructor Titles</div>
+                        <div className="font-mono text-lg font-bold text-blue-400">
+                          {team.constructors_championships || 0}
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">First Entry</div>
+                        <div className="font-mono text-lg font-bold text-purple-400">
+                          {team.first_appearance}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-gray-800">
+                      <div className="flex items-center justify-center">
+                        <TeamLogo 
+                          teamName={team.team_name} 
+                          size="sm" 
+                          showName={true}
+                          teamColor={getTeamColor(team.team_name)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Standings table */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-24">
+              <TeamStandingsTable />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 

@@ -30,7 +30,7 @@ export function Navbar() {
           {/* Logo/Brand */}
           <div className="flex items-center space-x-6">
             <h1 
-              className="text-2xl font-bold bg-gradient-to-r from-red-600 via-red-500 to-orange-500 bg-clip-text text-transparent cursor-pointer hover:opacity-80 transition-opacity"
+              className="text-2xl font-bold bg-gradient-to-r from-red-600 via-red-500 to-orange-500 bg-clip-text text-transparent cursor-pointer hover:opacity-80 transition-opacity logo-text"
               onClick={() => router.push("/")}
             >
               formula1.ai
