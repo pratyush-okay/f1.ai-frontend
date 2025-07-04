@@ -4,21 +4,30 @@ import Image from "next/image";
 import { useState } from "react";
 import { getTeamLogoWithFallback } from "@/utils/team-logos";
 
-interface TeamLogoProps {
+export interface TeamLogoProps {
   teamName: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   showName?: boolean;
   teamColor?: string;
 }
 
-export function TeamLogo({ teamName, size = 'sm', showName = true, teamColor }: TeamLogoProps) {
+export function TeamLogo({ teamName, size = 'md', showName = true, teamColor }: TeamLogoProps) {
   const [imageError, setImageError] = useState(false);
   const { logo, emoji } = getTeamLogoWithFallback(teamName);
   
-  const sizeClasses = {
-    sm: 'w-6 h-6',
-    md: 'w-8 h-8', 
-    lg: 'w-12 h-12'
+  const getLogoSize = () => {
+    switch (size) {
+      case 'xs':
+        return 'w-5 h-5';
+      case 'sm':
+        return 'w-8 h-8';
+      case 'md':
+        return 'w-12 h-12';
+      case 'lg':
+        return 'w-16 h-16';
+      default:
+        return 'w-12 h-12';
+    }
   };
   
   const textSizeClasses = {
@@ -37,12 +46,12 @@ export function TeamLogo({ teamName, size = 'sm', showName = true, teamColor }: 
     <div className="flex items-center space-x-2 will-change-transform">
       {/* Team Logo or Emoji */}
       {logo && !imageError ? (
-        <div className={`${sizeClasses[size]} relative flex-shrink-0 transition-transform duration-200 ease-out`}>
+        <div className={`${getLogoSize()} relative flex-shrink-0 transition-transform duration-200 ease-out`}>
           <Image
             src={logo}
             alt={`${teamName} logo`}
-            width={size === 'sm' ? 24 : size === 'md' ? 32 : 48}
-            height={size === 'sm' ? 24 : size === 'md' ? 32 : 48}
+            width={size === 'sm' ? 24 : size === 'md' ? 32 : size === 'lg' ? 48 : 64}
+            height={size === 'sm' ? 24 : size === 'md' ? 32 : size === 'lg' ? 48 : 64}
             className="object-contain"
             onError={() => setImageError(true)}
           />

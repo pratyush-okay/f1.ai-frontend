@@ -12,9 +12,10 @@ interface DriverImageProps {
   driverName: string;
   teamColor?: string;
   countryCode?: string;
+  position?: number;
 }
 
-export function DriverImage({ src, alt, number, driverName, teamColor, countryCode }: DriverImageProps) {
+export function DriverImage({ src, alt, number, driverName, teamColor, countryCode, position }: DriverImageProps) {
   const [imageError, setImageError] = useState(false);
   
   // Prefer local images over API images
@@ -34,6 +35,10 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
     hasLocalImage: hasLocalDriverImage(driverName),
     originalSrc: src
   });
+
+  const getPositionStyle = () => {
+    return 'bg-gray-800/50 text-gray-400';
+  };
 
   return (
     <div 
@@ -111,6 +116,13 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
       >
         #{number}
       </div>
+      
+      {/* Position Badge */}
+      {position && (
+        <div className={`absolute bottom-4 left-4 w-10 h-10 rounded-full flex items-center justify-center font-bold text-base ${getPositionStyle()}`}>
+          P{position}
+        </div>
+      )}
       
       {/* Fallback content when image fails */}
       {imageError && (
