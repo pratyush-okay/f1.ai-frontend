@@ -175,18 +175,20 @@ export default function DriversPage() {
                   </CardHeader>
                   
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Number</span>
-                          <span className="font-bold text-lg">#{driver.driver_number}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Age</span>
-                          <span className="font-medium">{getDriverAge(driver.full_name)} years</span>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">Number</div>
+                        <div className="font-mono text-xl font-bold text-white">
+                          #{driver.full_name === "Max Verstappen" ? 1 : driver.driver_number}
                         </div>
                       </div>
-                      
+                      <div className="space-y-1 text-center">
+                        <div className="text-xs text-gray-400">Age</div>
+                        <div className="font-mono text-xl font-bold text-white">{getDriverAge(driver.full_name)}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Points</span>
@@ -195,6 +197,13 @@ export default function DriversPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Wins</span>
                           <span className="font-medium text-yellow-600">{driver.wins || 0}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Team</span>
+                          <span className="font-bold text-lg">{driver.team_name}</span>
                         </div>
                       </div>
                     </div>

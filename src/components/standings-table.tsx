@@ -59,7 +59,7 @@ export function StandingsTable({ maxRows, compact = false }: StandingsTableProps
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400">
             🏆
           </span>
-          Driver Standings
+          2025 Driver Standings
         </h3>
       </div>
       <div className="divide-y divide-gray-800/50">

@@ -22,13 +22,20 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
   const useLocalImage = hasLocalDriverImage(driverName);
   const imageSrc = useLocalImage ? getDriverImagePath(driverName) : src;
   const backgroundGradient = getTeamGradient(teamColor || '');
-  const countryFlag = getCountryFlag(number); // Use driver number instead of countryCode
+  
+  // Try country code first, fall back to driver number
+  const countryFlag = countryCode ? getCountryFlag(countryCode) : getCountryFlag(number);
+  
+  // Override number for Max Verstappen to always show as #1
+  const displayNumber = driverName === "Max Verstappen" ? 1 : number;
   
   // Debug logging to see what data we're getting
   console.log('Driver Image Debug:', { 
     driverName, 
-    number, 
-    countryCode, 
+    number,
+    displayNumber,
+    countryCode,
+    countryFlag,
     teamColor, 
     useLocalImage,
     imageSrc,
@@ -57,7 +64,7 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
             willChange: 'transform, opacity'
           }}
         >
-          {number}
+          {displayNumber}
         </div>
       </div>
 
@@ -114,7 +121,7 @@ export function DriverImage({ src, alt, number, driverName, teamColor, countryCo
           boxShadow: `0 4px 12px #${teamColor || 'FF1E1E'}30`
         }}
       >
-        #{number}
+        #{displayNumber}
       </div>
       
       {/* Position Badge */}

@@ -167,7 +167,9 @@ export default function Home() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-1 text-center">
                         <div className="text-xs text-gray-400">Number</div>
-                        <div className="font-mono text-xl font-bold text-white">#{driver.driver_number}</div>
+                        <div className="font-mono text-xl font-bold text-white">
+                          #{driver.full_name === "Max Verstappen" ? 1 : driver.driver_number}
+                        </div>
                       </div>
                       <div className="space-y-1 text-center">
                         <div className="text-xs text-gray-400">Age</div>

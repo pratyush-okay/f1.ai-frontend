@@ -1,6 +1,7 @@
 // Driver number to nationality mapping (2025 season)
 const driverNationalities: Record<number, string> = {
-  1: 'Netherlands',        // Max Verstappen
+  1: 'Netherlands',        // Max Verstappen (preferred number)
+  33: 'Netherlands',       // Max Verstappen (API number)
   4: 'United Kingdom',     // Lando Norris
   5: 'Brazil',            // Gabriel Bortoleto
   6: 'France',            // Isack Hadjar
@@ -19,6 +20,8 @@ const driverNationalities: Record<number, string> = {
   23: 'Thailand',         // Alexander Albon
   55: 'Spain',            // Carlos Sainz
   27: 'Germany',          // Nico Hülkenberg
+  30: 'New Zealand',      // Liam Lawson
+  43: 'Argentina',        // Franco Colapinto
 };
 
 // Country name to flag emoji mapping
@@ -36,6 +39,10 @@ const countryFlags: Record<string, string> = {
   'Thailand': '🇹🇭',
   'Germany': '🇩🇪',
   'United States': '🇺🇸',
+  'New Zealand': '🇳🇿',
+  'Argentina': '🇦🇷',
+  'New Zealander': '🇳🇿',  // API variant
+  'Argentine': '🇦🇷',      // API variant
 };
 
 // Driver birth dates mapping (with multiple name variations)
