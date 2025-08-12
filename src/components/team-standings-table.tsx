@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { ApiService, type ConstructorStanding } from "@/services/api";
+import { ApiService, type ConstructorStanding, type F1Team } from "@/services/api";
 import { TeamLogo } from "@/components/team-logo";
 
 interface TeamStandingsTableProps {
@@ -10,16 +10,34 @@ interface TeamStandingsTableProps {
   compact?: boolean;
 }
 
+interface EnrichedConstructorStanding extends ConstructorStanding {
+  team_name: string;
+}
+
 export function TeamStandingsTable({ maxRows, compact = false }: TeamStandingsTableProps) {
-  const [standings, setStandings] = useState<ConstructorStanding[]>([]);
+  const [standings, setStandings] = useState<EnrichedConstructorStanding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStandings() {
       try {
-        const data = await ApiService.fetchConstructorStandings();
-        setStandings(data.standings || []);
+        // Fetch both standings and teams data
+        const [standingsData, teamsData] = await Promise.all([
+          ApiService.fetchConstructorStandings(),
+          ApiService.fetchTeams()
+        ]);
+
+        // Merge standings with team data to get team names
+        const enrichedStandings = standingsData.standings.map((standing: ConstructorStanding) => {
+          const team = teamsData.teams.find((t: F1Team) => t.team_id === standing.team_id);
+          return {
+            ...standing,
+            team_name: team?.team_name || `Team ${standing.team_id}`
+          };
+        });
+
+        setStandings(enrichedStandings);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch standings');
         console.error('Error fetching standings:', err);
@@ -57,7 +75,7 @@ export function TeamStandingsTable({ maxRows, compact = false }: TeamStandingsTa
       <div className="p-4 border-b border-gray-800">
         <h3 className="font-semibold text-white text-lg flex items-center gap-2 font-orbitron">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400">
-            🏆
+            🏁
           </span>
           2025 Constructor Standings
         </h3>
@@ -84,19 +102,25 @@ export function TeamStandingsTable({ maxRows, compact = false }: TeamStandingsTa
 
               {/* Team Info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-3 mb-1">
                   <TeamLogo 
                     teamName={standing.team_name} 
                     size="sm" 
-                    showName={true}
+                    showName={false}
                   />
-                </div>
-                <div className="flex items-center gap-2">
-                  {(standing.wins ?? 0) > 0 && (
-                    <div className={`text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-300 font-medium flex items-center gap-1 ${compact ? 'text-[10px]' : ''}`}>
-                      <span>🏆</span> {standing.wins}
+                  <div>
+                    <div className={`font-semibold text-white ${compact ? 'text-sm' : 'text-base'}`}>
+                      {standing.team_name}
                     </div>
-                  )}
+                    <div className={`text-gray-400 ${compact ? 'text-xs' : 'text-sm'}`}>
+                      {standing.points} pts
+                      {(standing.wins ?? 0) > 0 && (
+                        <span className="text-yellow-400 ml-2">
+                          • {standing.wins} {standing.wins === 1 ? 'win' : 'wins'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
