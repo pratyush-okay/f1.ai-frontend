@@ -31,12 +31,14 @@ export function TeamLogo({ teamName, size = 'md', showName = true, teamColor }: 
   };
   
   const textSizeClasses = {
+    xs: 'text-xs',
     sm: 'text-sm',
     md: 'text-base',
     lg: 'text-lg'
   };
   
   const emojiSizeClasses = {
+    xs: 'text-base',
     sm: 'text-lg',
     md: 'text-xl',
     lg: 'text-2xl'
