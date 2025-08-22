@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://f1-ai-backend.railway.internal';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface F1Driver {
   id: number;
