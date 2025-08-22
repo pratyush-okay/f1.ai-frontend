@@ -22,7 +22,7 @@ export default function DriversPage() {
         
         // Test API connection first
         console.log("🧪 Testing API connection...");
-        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://f1-ai-backend.railway.internal'}/api/drivers`);
+        const testResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app'}/api/drivers`);
         console.log("✅ API test response:", testResponse.status, testResponse.statusText);
         
         if (!testResponse.ok) {
