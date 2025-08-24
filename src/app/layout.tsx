@@ -52,7 +52,7 @@ const orbitron = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Formula1.ai - F1 Drivers & Teams",
+  title: "F1.AI - AI-powered F1 news",
   description: "Explore Formula 1 drivers and teams with live data from OpenF1 API and professional driver headshots",
 };
 
