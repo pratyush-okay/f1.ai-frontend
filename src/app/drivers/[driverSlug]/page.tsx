@@ -10,7 +10,8 @@ import { getSourceLogo, getSourceDisplayName } from "@/utils/source-logos";
 import Link from "next/link";
 import Image from "next/image";
 
-const API_BASE_URL = 'http://localhost:8000';
+// Replace the hardcoded localhost with environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app';
 
 interface DriverPageProps {
   params: Promise<{

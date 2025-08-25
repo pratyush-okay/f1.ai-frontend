@@ -89,7 +89,8 @@ export default function Home() {
         // Fetch today's summaries for all drivers
         try {
           const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-          const summariesUrl = `http://localhost:8000/api/storage/f1-ai-news/${today}/summaries`;
+          const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app';
+          const summariesUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${today}/summaries`;
           
           console.log("🔄 Fetching driver summaries from:", summariesUrl);
           
@@ -98,7 +99,7 @@ export default function Home() {
           // If today's summaries don't exist, try yesterday's
           if (!response.ok) {
             const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            const yesterdayUrl = `http://localhost:8000/api/storage/f1-ai-news/${yesterday}/summaries`;
+            const yesterdayUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${yesterday}/summaries`;
             console.log("🔄 Trying yesterday's summaries:", yesterdayUrl);
             response = await fetch(yesterdayUrl);
           }
@@ -106,7 +107,7 @@ export default function Home() {
           // If still not found, try a known working date
           if (!response.ok) {
             const knownDate = '2025-08-23';
-            const knownUrl = `http://localhost:8000/api/storage/f1-ai-news/${knownDate}/summaries`;
+            const knownUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${knownDate}/summaries`;
             console.log("🔄 Trying known working date:", knownUrl);
             response = await fetch(knownUrl);
           }
