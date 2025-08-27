@@ -53,7 +53,7 @@ const orbitron = localFont({
 
 export const metadata: Metadata = {
   title: "F1.AI - AI-powered F1 news",
-  description: "Explore Formula 1 drivers and teams with live data from OpenF1 API and professional driver headshots",
+  description: "Explore Formula 1 news powered by AI run daily up to date news.",
 };
 
 export default function RootLayout({
