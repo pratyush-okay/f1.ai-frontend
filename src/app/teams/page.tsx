@@ -7,10 +7,12 @@ import { TeamImage } from "@/components/team-image";
 import { TeamStandingsTable } from "@/components/team-standings-table";
 import { ApiService, type F1Team, type EnrichedF1Team, type ConstructorStanding, type F1Driver } from "@/services/api";
 import { teams } from "@/data/f1-data";
+import Link from "next/link";
 
 export default function TeamsPage() {
   const [enrichedTeams, setEnrichedTeams] = useState<EnrichedF1Team[]>([]);
   const [drivers, setDrivers] = useState<F1Driver[]>([]);
+  const [teamSummaries, setTeamSummaries] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +53,9 @@ export default function TeamsPage() {
         enriched.sort((a, b) => (a.championship_position || 999) - (b.championship_position || 999));
         
         setEnrichedTeams(enriched);
+
+        // Fetch team summaries
+        await fetchTeamSummaries();
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
         setError(errorMessage);
@@ -61,6 +66,44 @@ export default function TeamsPage() {
 
     fetchData();
   }, []);
+
+  // Fetch team summaries from API
+  const fetchTeamSummaries = async () => {
+    try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app';
+      
+      // Try today's date first
+      const today = new Date().toISOString().split('T')[0];
+      let apiUrl = `${API_BASE_URL}/api/storage/f1-ai-team-news/${today}/summaries`;
+      console.log("🔄 Fetching team summaries from:", apiUrl);
+      
+      let response = await fetch(apiUrl);
+      
+      // If today's file doesn't exist, try yesterday's date
+      if (!response.ok) {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        apiUrl = `${API_BASE_URL}/api/storage/f1-ai-team-news/${yesterday}/summaries`;
+        console.log("🔄 Trying yesterday's date:", apiUrl);
+        response = await fetch(apiUrl);
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("📰 Team Summaries API Response:", data);
+        
+        if (data.summaries) {
+          console.log("✅ Team summaries found:", Object.keys(data.summaries).length);
+          setTeamSummaries(data.summaries);
+        } else {
+          console.log("⚠️ No summaries found in response");
+        }
+      } else {
+        console.log("❌ No summaries file found for any date");
+      }
+    } catch (error) {
+      console.error("❌ Error fetching team summaries:", error);
+    }
+  };
 
   // Get team drivers
   const getTeamDrivers = (teamName: string): string[] => {
@@ -94,6 +137,51 @@ export default function TeamsPage() {
     };
 
     return baseMap[teamName] || nationality;
+  };
+
+  // Get today's summary for each team from API data
+  const getTodaysSummary = (teamName: string): string => {
+    // Map team names to their API team IDs
+    const getTeamApiId = (teamName: string): string => {
+      const teamIdMap: Record<string, string> = {
+        'Alpine F1 Team': 'alpine',
+        'Aston Martin F1 Team': 'aston_martin',
+        'Scuderia Ferrari': 'ferrari',
+        'Haas F1 Team': 'haas',
+        'McLaren Formula 1 Team': 'mclaren',
+        'Mercedes Formula 1 Team': 'mercedes',
+        'RB F1 Team': 'rb',
+        'Red Bull Racing': 'red_bull',
+        'Sauber F1 Team': 'sauber',
+        'Williams Racing': 'williams'
+      };
+      
+      return teamIdMap[teamName] || teamName.toLowerCase().replace(/\s+/g, '_');
+    };
+
+    const teamApiId = getTeamApiId(teamName);
+    const summaryKey = `${teamApiId}_total_summary`;
+    
+    // Return real summary from API if available, otherwise fallback
+    if (teamSummaries[summaryKey]) {
+      return teamSummaries[summaryKey];
+    }
+    
+    // Fallback summaries if API data is not available
+    const fallbackSummaries: Record<string, string> = {
+      'Red Bull Racing': 'Red Bull continues to dominate with Max Verstappen leading the championship. The team is focusing on aerodynamic upgrades for the upcoming race.',
+      'Mercedes Formula 1 Team': 'Mercedes shows promising pace in recent testing. George Russell and Lewis Hamilton are working closely with engineers on car development.',
+      'Scuderia Ferrari': 'Ferrari demonstrates strong qualifying performance. Charles Leclerc and Carlos Sainz are confident about their race pace improvements.',
+      'McLaren Formula 1 Team': 'McLaren reveals significant technical upgrades. Lando Norris and Oscar Piastri are optimistic about their championship prospects.',
+      'Aston Martin F1 Team': 'Aston Martin announces new partnership deal. Fernando Alonso and Lance Stroll are adapting well to the latest car updates.',
+      'Alpine F1 Team': 'Alpine focuses on engine reliability improvements. The team is working on reducing weight and improving aerodynamic efficiency.',
+      'Williams Racing': 'Williams shows encouraging progress in recent sessions. The team is developing new aerodynamic components for better performance.',
+      'RB F1 Team': 'RB continues development of their 2025 challenger. The team is optimistic about their midfield battle prospects.',
+      'Haas F1 Team': 'Haas announces new technical partnership. The team is working on improving their qualifying and race pace consistency.',
+      'Sauber F1 Team': 'Sauber reveals new livery design for upcoming races. The team is focusing on aerodynamic efficiency and tire management.'
+    };
+
+    return fallbackSummaries[teamName] || `${teamName} is working on technical developments and driver performance improvements for the upcoming race weekend.`;
   };
 
   if (loading) {
@@ -172,15 +260,19 @@ export default function TeamsPage() {
           <div className="lg:col-span-3">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {enrichedTeams.map((team) => (
-                <Card 
+                <Link 
                   key={team.team_id} 
-                  className="overflow-hidden hover:shadow-xl transition-all duration-300 ease-out hover:scale-[1.02] group will-change-transform relative bg-black border-gray-800 backdrop-blur-sm"
-                  style={{ 
-                    borderTopColor: `#${getTeamColor(team.team_name)}`,
-                    borderTopWidth: '4px',
-                    boxShadow: `0 4px 12px rgba(${parseInt(getTeamColor(team.team_name).slice(0,2) || 'FF', 16)}, ${parseInt(getTeamColor(team.team_name).slice(2,4) || '1E', 16)}, ${parseInt(getTeamColor(team.team_name).slice(4,6) || '1E', 16)}, 0.15)`
-                  }}
+                  href={`/teams/${team.team_name.toLowerCase().replace(/\s+/g, '_')}`}
+                  className="block"
                 >
+                  <Card 
+                    className="overflow-hidden hover:shadow-xl transition-all duration-300 ease-out hover:scale-[1.02] group will-change-transform relative bg-black border-gray-800 backdrop-blur-sm cursor-pointer"
+                    style={{ 
+                      borderTopColor: `#${getTeamColor(team.team_name)}`,
+                      borderTopWidth: '4px',
+                      boxShadow: `0 4px 12px rgba(${parseInt(getTeamColor(team.team_name).slice(0,2) || 'FF', 16)}, ${parseInt(getTeamColor(team.team_name).slice(2,4) || '1E', 16)}, ${parseInt(getTeamColor(team.team_name).slice(4,6) || '1E', 16)}, 0.15)`
+                    }}
+                  >
                   {/* Championship Position Badge */}
                   {team.championship_position && (
                     <div className="absolute top-4 left-4 z-10 px-3 py-1 rounded-full text-sm font-bold bg-gray-800/50 text-gray-400 shadow-lg">
@@ -205,37 +297,45 @@ export default function TeamsPage() {
                   </CardHeader>
                   
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-1 text-center">
+                    {/* Stats Row - All 4 stats on same line */}
+                    <div className="flex justify-between items-center mb-4 px-2">
+                      <div className="text-center">
                         <div className="text-xs text-gray-400">Points</div>
-                        <div className="font-mono text-xl font-bold text-green-400">
+                        <div className="font-mono text-lg font-bold text-green-400">
                           {team.championship_points || 0}
                         </div>
                       </div>
-                      <div className="space-y-1 text-center">
+                      <div className="text-center">
                         <div className="text-xs text-gray-400">Wins</div>
-                        <div className="font-mono text-xl font-bold text-yellow-400">
+                        <div className="font-mono text-lg font-bold text-yellow-400">
                           {team.wins || 0}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-1 text-center">
-                        <div className="text-xs text-gray-400">Constructor Titles</div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-400">Titles</div>
                         <div className="font-mono text-lg font-bold text-blue-400">
                           {team.constructors_championships || 0}
                         </div>
                       </div>
-                      <div className="space-y-1 text-center">
-                        <div className="text-xs text-gray-400">First Entry</div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-400">Since</div>
                         <div className="font-mono text-lg font-bold text-purple-400">
                           {team.first_appearance}
                         </div>
                       </div>
                     </div>
 
+                    {/* Today's Summary */}
                     <div className="mt-4 pt-4 border-t border-gray-800">
+                      <div className="mb-3">
+                        <div className="text-xs text-gray-400 font-semibold mb-2">Today&apos;s Summary</div>
+                        <div className="h-16 overflow-hidden">
+                          <p className="text-sm text-gray-300 leading-relaxed line-clamp-3">
+                            {getTodaysSummary(team.team_name)}
+                          </p>
+                        </div>
+                      </div>
+                      
                       <div className="flex items-center justify-center">
                         <TeamLogo 
                           teamName={team.team_name} 
@@ -247,6 +347,7 @@ export default function TeamsPage() {
                     </div>
                   </CardContent>
                 </Card>
+                </Link>
               ))}
             </div>
           </div>

@@ -86,7 +86,7 @@ export function TeamImage({ teamName, teamColor, position, drivers = [] }: TeamI
             
             return (
               <div 
-                key={index}
+                key={driverName}
                 className="relative opacity-20 transition-all duration-300 ease-out group-hover:opacity-40 group-hover:scale-105"
                 style={{
                   width: '80px',
