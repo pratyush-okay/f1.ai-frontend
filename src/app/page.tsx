@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DriverImage } from "@/components/driver-image";
-import { TeamLogo } from "@/components/team-logo";
-import { StandingsTable } from "@/components/standings-table";
-import { ApiService, type F1Driver } from "@/services/api";
-import { getDriverAge } from "@/utils/driver-data";
-import Link from "next/link";
+import { ApiService, F1Driver, F1Team } from "@/services/api";
+import { Card } from "@/components/ui/card";
 
 interface NewsArticle {
   title: string;
@@ -16,177 +11,382 @@ interface NewsArticle {
   published_at: string;
 }
 
-interface DriverNews {
-  articles: NewsArticle[];
-  total_summary: string;
+interface CombinedNewsArticle extends NewsArticle {
+  type: 'driver' | 'team';
+  entityName: string;
 }
 
-export default function Home() {
-  const [drivers, setDrivers] = useState<F1Driver[]>([]);
+export default function AINewsPage() {
+  const [allArticles, setAllArticles] = useState<CombinedNewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [driverSummaries, setDriverSummaries] = useState<Record<string, string>>({});
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'drivers' | 'teams'>('all');
+  const [drivers, setDrivers] = useState<F1Driver[]>([]);
+  const [teams, setTeams] = useState<F1Team[]>([]);
+  const [selectedDrivers, setSelectedDrivers] = useState<Set<string>>(new Set());
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [showDriverFilters, setShowDriverFilters] = useState(false);
+  const [showTeamFilters, setShowTeamFilters] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Mock news data - in real app, this would come from an API
-  const getMockNews = (driverName: string): DriverNews => {
-    return {
-      articles: [
-        {
-          title: `${driverName} expresses determination ahead of upcoming race`,
-          news: `${driverName} has been showing exceptional form in recent sessions, with team principal praising the driver's commitment and technical feedback. The upcoming race weekend presents an opportunity to build on recent momentum.`,
-          source: "ESPN F1",
-          published_at: "2025-01-15T10:30:00.000Z"
-        },
-        {
-          title: `Team principal confident in ${driverName}'s championship potential`,
-          news: `Following recent performance improvements, the team principal has expressed full confidence in ${driverName}'s ability to challenge for the championship. Technical upgrades planned for the next race should provide additional performance gains.`,
-          source: "Sky Sports F1",
-          published_at: "2025-01-14T15:45:00.000Z"
-        },
-        {
-          title: `${driverName} sets impressive lap times in testing`,
-          news: `${driverName} demonstrated exceptional pace during the latest testing session, setting lap times that have caught the attention of rival teams. The driver's consistency and technical understanding continue to impress.`,
-          source: "Fox Sports",
-          published_at: "2025-01-13T09:20:00.000Z"
-        },
-        {
-          title: `Fans excited about ${driverName}'s season prospects`,
-          news: `Social media has been buzzing with excitement about ${driverName}'s potential this season. Fans are particularly impressed with the driver's work ethic and determination to succeed.`,
-          source: "F1.com",
-          published_at: "2025-01-12T14:15:00.000Z"
-        },
-        {
-          title: `${driverName} discusses technical developments with engineers`,
-          news: `${driverName} spent extra time with the engineering team discussing potential technical developments. The driver's input has been invaluable in developing the car's performance characteristics.`,
-          source: "Motorsport.com",
-          published_at: "2025-01-11T11:30:00.000Z"
-        }
-      ],
-      total_summary: `${driverName} is currently in excellent form, showing strong performance in recent sessions and demonstrating exceptional technical understanding. The team is confident in the driver's championship potential, with fans and media alike taking notice of the impressive pace and consistency. Technical developments are being implemented based on the driver's valuable feedback, setting up what could be a very successful season.`
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app';
+
+  // Get team API ID mapping
+  const getTeamApiId = (teamName: string): string => {
+    const teamIdMap: Record<string, string> = {
+      'Alpine F1 Team': 'alpine',
+      'Aston Martin F1 Team': 'aston_martin',
+      'Scuderia Ferrari': 'ferrari',
+      'Haas F1 Team': 'haas',
+      'McLaren Formula 1 Team': 'mclaren',
+      'Mercedes Formula 1 Team': 'mercedes',
+      'RB F1 Team': 'rb',
+      'Red Bull Racing': 'red_bull',
+      'Sauber F1 Team': 'sauber',
+      'Williams Racing': 'williams'
     };
+    
+    return teamIdMap[teamName] || teamName.toLowerCase().replace(/\s+/g, '_');
   };
 
-  // Helper function to get summary for a specific driver
-  const getDriverSummary = (driverName: string): string => {
-    const driverKey = driverName.toLowerCase().replace(/\s+/g, '_') + '_total_summary';
-    return driverSummaries[driverKey] || getMockNews(driverName).total_summary;
+  // Fetch news for a specific driver
+  const fetchDriverNews = async (driver: F1Driver, date: string): Promise<CombinedNewsArticle[]> => {
+    try {
+      const driverFilename = driver.full_name.toLowerCase().replace(/\s+/g, '_') + '.json';
+      const apiUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${date}/${driverFilename}`;
+      
+      const response = await fetch(apiUrl);
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`📄 Driver news data for ${driver.full_name}:`, data);
+        
+        // Check if data has articles property and it's an array
+        // The articles can be either directly in data.articles or nested in data.content.articles
+        const articles = data?.articles || data?.content?.articles;
+        if (articles && Array.isArray(articles)) {
+          return articles.map(article => ({
+            ...article,
+            type: 'driver' as const,
+            entityName: driver.full_name
+          }));
+        } else {
+          console.log(`⚠️ No articles found for driver ${driver.full_name} on ${date}`);
+        }
+      } else {
+        console.log(`❌ No news file found for driver ${driver.full_name} on ${date} (${response.status})`);
+      }
+    } catch (error) {
+      console.error(`Error fetching news for driver ${driver.full_name}:`, error);
+    }
+    return [];
+  };
+
+  // Fetch news for a specific team
+  const fetchTeamNews = async (team: F1Team, date: string): Promise<CombinedNewsArticle[]> => {
+    try {
+      const teamApiId = getTeamApiId(team.team_name);
+      const teamFilename = `${teamApiId}.json`;
+      const apiUrl = `${API_BASE_URL}/api/storage/f1-ai-team-news/${date}/${teamFilename}`;
+      
+      const response = await fetch(apiUrl);
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`📄 Team news data for ${team.team_name}:`, data);
+        
+        // Check if data has articles property and it's an array
+        // The articles can be either directly in data.articles or nested in data.content.articles
+        const articles = data?.articles || data?.content?.articles;
+        if (articles && Array.isArray(articles)) {
+          return articles.map(article => ({
+            ...article,
+            type: 'team' as const,
+            entityName: team.team_name
+          }));
+        } else {
+          console.log(`⚠️ No articles found for team ${team.team_name} on ${date}`);
+        }
+      } else {
+        console.log(`❌ No news file found for team ${team.team_name} on ${date} (${response.status})`);
+      }
+    } catch (error) {
+      console.error(`Error fetching news for team ${team.team_name}:`, error);
+    }
+    return [];
+  };
+
+  // Fetch all news articles
+  const fetchAllNews = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get today's and yesterday's dates
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      // Fetch drivers and teams data
+      const [driversData, teamsData] = await Promise.all([
+        ApiService.fetchDrivers(),
+        ApiService.fetchTeams()
+      ]);
+
+      // Set drivers and teams for filtering
+      console.log("📊 Setting drivers data:", driversData.drivers.length, "drivers");
+      console.log("📊 Setting teams data:", teamsData.teams.length, "teams");
+      setDrivers(driversData.drivers);
+      setTeams(teamsData.teams);
+
+      const allArticles: CombinedNewsArticle[] = [];
+
+      // Try today's date first, then yesterday's, then a known working date
+      const knownDate = '2025-08-23'; // Fallback date
+      for (const date of [today, yesterday, knownDate]) {
+        console.log(`🔄 Fetching news for date: ${date}`);
+
+        // Fetch driver news
+        const driverNewsPromises = driversData.drivers.map(driver => 
+          fetchDriverNews(driver, date)
+        );
+        const driverNewsResults = await Promise.all(driverNewsPromises);
+        const driverArticles = driverNewsResults.flat();
+
+        // Fetch team news
+        const teamNewsPromises = teamsData.teams.map(team => 
+          fetchTeamNews(team, date)
+        );
+        const teamNewsResults = await Promise.all(teamNewsPromises);
+        const teamArticles = teamNewsResults.flat();
+
+        // If we found articles for this date, use them and break
+        if (driverArticles.length > 0 || teamArticles.length > 0) {
+          allArticles.push(...driverArticles, ...teamArticles);
+          console.log(`✅ Found ${driverArticles.length} driver articles and ${teamArticles.length} team articles for ${date}`);
+          break;
+        }
+      }
+
+      // Sort articles by published date (newest first)
+      allArticles.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+
+      setAllArticles(allArticles);
+      console.log(`📰 Total articles loaded: ${allArticles.length}`);
+    } catch (error) {
+      console.error('❌ Error fetching news:', error);
+      setError('Failed to load news articles');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        console.log("🔄 Starting to fetch drivers data...");
-        setLoading(true);
-        setError(null);
-      
-        
-        // Fetch drivers data
-        console.log("📊 Fetching drivers data...");
-        const driversData = await ApiService.fetchDrivers();
-        console.log("✅ Drivers data received:", driversData.drivers.length, "drivers");
-        setDrivers(driversData.drivers);
+    fetchAllNews();
+  }, []);
 
-        // Fetch today's summaries for all drivers
-        try {
-          const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-          const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://f1ai-backend-production.up.railway.app';
-          const summariesUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${today}/summaries`;
-          
-          console.log("🔄 Fetching driver summaries from:", summariesUrl);
-          
-          let response = await fetch(summariesUrl);
-          
-          // If today's summaries don't exist, try yesterday's
-          if (!response.ok) {
-            const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            const yesterdayUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${yesterday}/summaries`;
-            console.log("🔄 Trying yesterday's summaries:", yesterdayUrl);
-            response = await fetch(yesterdayUrl);
-          }
-          
-          // If still not found, try a known working date
-          if (!response.ok) {
-            const knownDate = '2025-08-23';
-            const knownUrl = `${API_BASE_URL}/api/storage/f1-ai-news/${knownDate}/summaries`;
-            console.log("🔄 Trying known working date:", knownUrl);
-            response = await fetch(knownUrl);
-          }
-          
-          if (response.ok) {
-            const summariesData = await response.json();
-            console.log("📰 Summaries API Response:", summariesData);
-            
-            if (summariesData.summaries) {
-              console.log("✅ Driver summaries found:", Object.keys(summariesData.summaries).length);
-              setDriverSummaries(summariesData.summaries);
-            } else {
-              console.log("⚠️ No summaries found in response");
-            }
-          } else {
-            console.log("❌ No summaries file found for any date");
-          }
-          
-        } catch (summariesError) {
-          console.error("❌ Error fetching summaries:", summariesError);
-          console.log("📰 Using mock summaries instead");
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
-        console.error("❌ Error fetching data:", err);
-        setError(errorMessage);
-      } finally {
-        console.log("🏁 Loading finished");
-        setLoading(false);
+  // Filter articles based on selection
+  const filteredArticles = allArticles.filter(article => {
+    // First filter by main category
+    if (selectedFilter === 'drivers' && article.type !== 'driver') return false;
+    if (selectedFilter === 'teams' && article.type !== 'team') return false;
+    
+    // Then filter by specific drivers/teams if any are selected
+    if (selectedFilter === 'drivers' || selectedFilter === 'all') {
+      if (selectedDrivers.size > 0 && !selectedDrivers.has(article.entityName)) {
+        return false;
       }
     }
+    
+    if (selectedFilter === 'teams' || selectedFilter === 'all') {
+      if (selectedTeams.size > 0 && !selectedTeams.has(article.entityName)) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
-    fetchData();
-  }, []);
+  // Helper functions for filter management
+  const toggleDriver = (driverName: string) => {
+    const newSelected = new Set(selectedDrivers);
+    if (newSelected.has(driverName)) {
+      newSelected.delete(driverName);
+    } else {
+      newSelected.add(driverName);
+    }
+    setSelectedDrivers(newSelected);
+  };
+
+  const toggleTeam = (teamName: string) => {
+    const newSelected = new Set(selectedTeams);
+    if (newSelected.has(teamName)) {
+      newSelected.delete(teamName);
+    } else {
+      newSelected.add(teamName);
+    }
+    setSelectedTeams(newSelected);
+  };
+
+  const selectAllDrivers = () => {
+    setSelectedDrivers(new Set(drivers.map(d => d.full_name)));
+  };
+
+  const clearAllDrivers = () => {
+    setSelectedDrivers(new Set());
+  };
+
+  const selectAllTeams = () => {
+    setSelectedTeams(new Set(teams.map(t => t.team_name)));
+  };
+
+  const clearAllTeams = () => {
+    setSelectedTeams(new Set());
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black py-8">
         <div className="container mx-auto px-4">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Drivers</h1>
+            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 AI News</h1>
             <p className="text-gray-400 text-lg">
-              Loading the latest F1 driver data and championship standings...
+              Loading the latest F1 news and insights...
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Main content area */}
             <div className="lg:col-span-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(15)].map((_, i) => (
-                  <Card key={i} className="overflow-hidden animate-pulse bg-gray-900 border-gray-800">
-                    <div className="h-64 bg-gray-800" />
-                    <CardHeader>
-                      <div className="h-6 bg-gray-800 rounded mb-2" />
-                      <div className="h-4 bg-gray-800 rounded w-3/4" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="h-4 bg-gray-800 rounded" />
-                        <div className="h-4 bg-gray-800 rounded w-2/3" />
+              {/* Featured Article Skeleton */}
+              <div className="bg-card rounded-lg border shadow-sm overflow-hidden animate-pulse mb-8">
+                <div className="p-8">
+                  {/* Badge and Date Skeleton */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-20 h-7 bg-gray-800/50 rounded-full"></div>
+                    <div className="w-32 h-5 bg-gray-800/50 rounded"></div>
+                  </div>
+
+                  {/* Entity Name Skeleton */}
+                  <div className="w-40 h-5 bg-gray-800/50 rounded mb-3"></div>
+
+                  {/* Article Title Skeleton */}
+                  <div className="space-y-3 mb-4">
+                    <div className="h-8 bg-gray-800/50 rounded"></div>
+                    <div className="h-8 bg-gray-800/50 rounded w-4/5"></div>
+                  </div>
+
+                  {/* Article Content Skeleton */}
+                  <div className="space-y-3 mb-6">
+                    <div className="h-5 bg-gray-800/50 rounded"></div>
+                    <div className="h-5 bg-gray-800/50 rounded w-11/12"></div>
+                    <div className="h-5 bg-gray-800/50 rounded w-10/12"></div>
+                    <div className="h-5 bg-gray-800/50 rounded w-9/12"></div>
+                  </div>
+
+                  {/* Source Skeleton */}
+                  <div className="flex items-center justify-between">
+                    <div className="w-24 h-4 bg-gray-800/50 rounded"></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Regular News Cards Skeleton */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {[...Array(11)].map((_, index) => {
+                  const isLarge = index % 5 === 0;
+                  const isMedium = index % 3 === 0;
+                  
+                  return (
+                    <Card 
+                      key={index}
+                      className={`bg-card rounded-lg border shadow-sm overflow-hidden animate-pulse ${
+                        isLarge ? 'md:col-span-2 lg:col-span-2' : ''
+                      }`}
+                    >
+                      <div className={`${isLarge ? 'p-8' : isMedium ? 'p-6' : 'p-5'}`}>
+                        {/* Badge and Date Skeleton */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-16 h-6 bg-gray-800/50 rounded-full"></div>
+                          <div className="w-24 h-4 bg-gray-800/50 rounded"></div>
+                        </div>
+
+                        {/* Entity Name Skeleton */}
+                        <div className={`bg-gray-800/50 rounded mb-2 ${
+                          isLarge ? 'w-36 h-5' : 'w-32 h-4'
+                        }`}></div>
+
+                        {/* Article Title Skeleton */}
+                        <div className="space-y-2 mb-3">
+                          <div className={`bg-gray-800/50 rounded ${
+                            isLarge ? 'h-6' : isMedium ? 'h-5' : 'h-4'
+                          }`}></div>
+                          <div className={`bg-gray-800/50 rounded ${
+                            isLarge ? 'h-6 w-3/4' : isMedium ? 'h-5 w-3/4' : 'h-4 w-3/4'
+                          }`}></div>
+                        </div>
+
+                        {/* Article Content Skeleton */}
+                        <div className="space-y-2 mb-4">
+                          <div className="h-4 bg-gray-800/50 rounded"></div>
+                          <div className="h-4 bg-gray-800/50 rounded w-5/6"></div>
+                          <div className="h-4 bg-gray-800/50 rounded w-4/5"></div>
+                          <div className="h-4 bg-gray-800/50 rounded w-3/4"></div>
+                        </div>
+
+                        {/* Source Skeleton */}
+                        <div className="flex items-center justify-between">
+                          <div className="w-20 h-3 bg-gray-800/50 rounded"></div>
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             </div>
             
-            {/* Standings sidebar */}
-            <div className="lg:col-span-1">
-              <div className="animate-pulse">
-                <div className="h-6 bg-gray-800 rounded mb-6" />
-                <div className="space-y-3">
-                  {[...Array(10)].map((_, i) => (
-                    <div key={i} className="h-12 bg-gray-800 rounded-lg" />
-                  ))}
-                </div>
-              </div>
-            </div>
+                         {/* Sidebar */}
+             <div className="lg:col-span-1">
+               <div className="space-y-6">
+                 {/* News Statistics Skeleton */}
+                 <div className="bg-card rounded-lg border shadow-sm p-6 animate-pulse">
+                   <div className="h-6 bg-gray-800 rounded mb-4" />
+                   <div className="space-y-3">
+                     {[...Array(4)].map((_, i) => (
+                       <div key={i} className="h-4 bg-gray-800 rounded" />
+                     ))}
+                   </div>
+                 </div>
+
+                 {/* Driver Filters Skeleton */}
+                 <div className="bg-card rounded-lg border shadow-sm p-6 animate-pulse">
+                   <div className="h-6 bg-gray-800 rounded mb-4" />
+                   <div className="space-y-2">
+                     {[...Array(8)].map((_, i) => (
+                       <div key={i} className="h-4 bg-gray-800 rounded" />
+                     ))}
+                   </div>
+                 </div>
+
+                 {/* Team Filters Skeleton */}
+                 <div className="bg-card rounded-lg border shadow-sm p-6 animate-pulse">
+                   <div className="h-6 bg-gray-800 rounded mb-4" />
+                   <div className="space-y-2">
+                     {[...Array(6)].map((_, i) => (
+                       <div key={i} className="h-4 bg-gray-800 rounded" />
+                     ))}
+                   </div>
+                 </div>
+               </div>
+             </div>
           </div>
         </div>
       </div>
@@ -198,9 +398,9 @@ export default function Home() {
       <div className="min-h-screen bg-black py-8">
         <div className="container mx-auto px-4">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Drivers</h1>
+            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 AI News</h1>
             <p className="text-gray-400 text-lg">
-              Unable to load driver data
+              Unable to load news articles
             </p>
           </div>
           <div className="text-center py-12">
@@ -208,7 +408,7 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-red-400 mb-2">Error Loading Data</h2>
             <p className="text-gray-400 mb-4">{error}</p>
             <button 
-              onClick={() => window.location.reload()} 
+              onClick={fetchAllNews}
               className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
             >
               Try Again
@@ -222,113 +422,752 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black py-8">
       <div className="container mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 Drivers</h1>
-          <p className="text-gray-400 text-lg">
-            {drivers.length} drivers competing in the current F1 season
-          </p>
+                          <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-4xl font-bold mb-2 text-white">Formula 1 AI News</h1>
+            <p className="text-gray-400 text-lg">
+                Latest news and insights from the world of Formula 1
+            </p>
+          </div>
+
+            {/* Desktop Filter Controls */}
+            <div className="hidden lg:flex space-x-2 bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-1 shadow-lg">
+            <button
+              onClick={() => setSelectedFilter('all')}
+              className={`px-4 py-2 rounded-md transition-all duration-300 ${
+                selectedFilter === 'all' 
+                  ? 'bg-red-500 text-white shadow-lg' 
+                  : 'hover:bg-red-500/10 hover:text-red-500'
+              }`}
+            >
+              All ({allArticles.length})
+            </button>
+            <button
+              onClick={() => setSelectedFilter('drivers')}
+              className={`px-4 py-2 rounded-md transition-all duration-300 ${
+                selectedFilter === 'drivers' 
+                  ? 'bg-red-500 text-white shadow-lg' 
+                  : 'hover:bg-red-500/10 hover:text-red-500'
+              }`}
+            >
+              Drivers ({allArticles.filter(a => a.type === 'driver').length})
+            </button>
+            <button
+              onClick={() => setSelectedFilter('teams')}
+              className={`px-4 py-2 rounded-md transition-all duration-300 ${
+                selectedFilter === 'teams' 
+                  ? 'bg-red-500 text-white shadow-lg' 
+                  : 'hover:bg-red-500/10 hover:text-red-500'
+              }`}
+            >
+              Teams ({allArticles.filter(a => a.type === 'team').length})
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Main content area - Driver cards */}
-          <div className="lg:col-span-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {drivers.map((driver) => {
-                const driverSlug = driver.full_name.toLowerCase().replace(/\s+/g, '_');
-                return (
-                  <Link 
-                    key={driver.driver_number} 
-                    href={`/drivers/${driverSlug}`}
-                    className="block no-underline"
-                  >
-                    <Card 
-                      className="overflow-hidden hover:shadow-xl transition-all duration-300 ease-out hover:scale-[1.02] group will-change-transform relative bg-black border-gray-800 backdrop-blur-sm cursor-pointer"
+          {/* Mobile Filter Button */}
+          <div className="lg:hidden">
+            <button
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-red-900/20 to-red-800/20 border border-red-800/30 rounded-lg hover:from-red-900/30 hover:to-red-800/30 transition-all duration-200"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-red-600/20 rounded-lg flex items-center justify-center">
+                  <span className="text-red-400 text-lg">🔍</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Filters</h3>
+                  <p className="text-xs text-red-300">
+                    {selectedFilter === 'all' ? 'All articles' : selectedFilter === 'drivers' ? 'Driver news only' : 'Team news only'}
+                </p>
+              </div>
+                      </div>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${selectedFilter !== 'all' ? 'bg-red-400' : 'bg-gray-600'}`}></div>
+                <svg 
+                  className={`w-5 h-5 text-red-400 transition-transform duration-200 ${showMobileFilters ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Mobile Filter Panel */}
+            {showMobileFilters && (
+              <div className="mt-4 space-y-4">
+                {/* Category Filter */}
+                <div className="bg-card rounded-lg border shadow-sm p-4">
+                  <h4 className="text-sm font-semibold text-white mb-3">Category</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setSelectedFilter('all')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        selectedFilter === 'all' 
+                          ? 'bg-red-500 text-white shadow-lg' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
                     >
-                  <DriverImage 
-                    src={driver.headshot_url || driver.image}
-                    alt={driver.full_name}
-                    number={driver.driver_number}
-                    driverName={driver.full_name}
-                    teamColor={driver.team_colour}
-                    countryCode={driver.country_code}
-                    position={driver.championship_position}
-                  />
+                      All ({allArticles.length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedFilter('drivers')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        selectedFilter === 'drivers' 
+                          ? 'bg-red-500 text-white shadow-lg' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      Drivers ({allArticles.filter(a => a.type === 'driver').length})
+                    </button>
+                    <button
+                      onClick={() => setSelectedFilter('teams')}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                        selectedFilter === 'teams' 
+                          ? 'bg-red-500 text-white shadow-lg' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      Teams ({allArticles.filter(a => a.type === 'team').length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Driver Filters */}
+                <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+                  <div 
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-900/20 to-blue-800/20 border-b border-blue-800/30 cursor-pointer hover:from-blue-900/30 hover:to-blue-800/30 transition-all duration-200"
+                    onClick={() => setShowDriverFilters(!showDriverFilters)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                        <span className="text-blue-400 text-lg">🏎️</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Driver Filters</h3>
+                        <p className="text-xs text-blue-300">
+                          {selectedDrivers.size > 0 ? `${selectedDrivers.size} selected` : `${drivers.length} drivers available`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${selectedDrivers.size > 0 ? 'bg-blue-400' : 'bg-gray-600'}`}></div>
+                      <svg 
+                        className={`w-5 h-5 text-blue-400 transition-transform duration-200 ${showDriverFilters ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                  </div>
+                  </div>
                   
-                  <CardHeader className="pb-2 text-center">
-                    <CardTitle className="text-lg font-bold text-white group-hover:text-red-500 transition-colors">
-                      {driver.full_name}
-                    </CardTitle>
-                    <CardDescription className="text-gray-400 text-sm flex items-center justify-center gap-2">
-                      <span className="font-mono">{driver.name_acronym}</span>
-                      <span className="text-gray-600">•</span>
-                      <span>{driver.team_name}</span>
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    {/* Stats in one line */}
-                    <div className="flex justify-between items-center mb-4 px-2">
-                      <div className="text-center">
-                        <div className="text-xs text-gray-400">Number</div>
-                        <div className="font-mono text-lg font-bold text-white">
-                          #{driver.full_name === "Max Verstappen" ? 1 : driver.driver_number}
+                  {showDriverFilters && (
+                    <div className="p-4 space-y-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={selectAllDrivers}
+                          className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={clearAllDrivers}
+                          className="flex-1 px-3 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      
+                      <div className="max-h-48 overflow-y-auto space-y-2 custom-scrollbar">
+                        {drivers.length > 0 ? (
+                          drivers.map((driver) => (
+                            <label 
+                              key={driver.driver_number} 
+                              className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-blue-900/20 group ${
+                                selectedDrivers.has(driver.full_name) ? 'bg-blue-900/30 border border-blue-700/50' : 'hover:border-blue-700/30 border border-transparent'
+                              }`}
+                            >
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDrivers.has(driver.full_name)}
+                                  onChange={() => toggleDriver(driver.full_name)}
+                                  className="w-4 h-4 rounded border-2 border-blue-600 bg-gray-800 text-transparent focus:ring-blue-500 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
+                                />
+                            </div>
+                              <div className="flex-1">
+                                <span className={`text-sm font-medium transition-colors duration-200 ${
+                                  selectedDrivers.has(driver.full_name) 
+                                    ? 'text-blue-200' 
+                                    : 'text-gray-300 group-hover:text-white'
+                                }`}>
+                                  {driver.full_name}
+                              </span>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  #{driver.driver_number} • {driver.team_name}
+                            </div>
+                          </div>
+                              {selectedDrivers.has(driver.full_name) && (
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                              )}
+                            </label>
+                          ))
+                        ) : (
+                          <div className="text-center py-4">
+                            <div className="w-6 h-6 bg-blue-600/20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                              <span className="text-blue-400">⏳</span>
                         </div>
+                            <div className="text-xs text-gray-500">Loading drivers...</div>
+                  </div>
+                )}
                       </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-400">Age</div>
-                        <div className="font-mono text-lg font-bold text-white">{getDriverAge(driver.full_name)}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-400">Points</div>
-                        <div className="font-mono text-lg font-bold text-green-400">{driver.championship_points || 0}</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-gray-400">Wins</div>
-                        <div className="font-mono text-lg font-bold text-yellow-400">{driver.wins || 0}</div>
-                      </div>
-                    </div>
-
-                    {/* Today's Summary */}
-                    <div className="mb-4">
-                      <div className="text-xs text-gray-400 mb-2 font-medium">Today&apos;s Summary</div>
-                      <p className="text-sm text-gray-300 leading-relaxed line-clamp-3">
-                        {getDriverSummary(driver.full_name)}
-                      </p>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-800">
-                      <div className="flex items-center justify-center">
-                        <TeamLogo 
-                          teamName={driver.team_name} 
-                          size="sm" 
-                          showName={true}
-                          teamColor={driver.team_colour}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {drivers.length === 0 && !loading && !error && (
-              <div className="text-center py-12">
-                <p className="text-gray-400 text-lg">No drivers data available</p>
               </div>
             )}
           </div>
 
-          {/* Standings sidebar */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar">
-              <StandingsTable compact={true} />
+                {/* Team Filters */}
+                <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+                  <div 
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-green-900/20 to-green-800/20 border-b border-green-800/30 cursor-pointer hover:from-green-900/30 hover:to-green-800/30 transition-all duration-200"
+                    onClick={() => setShowTeamFilters(!showTeamFilters)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-600/20 rounded-lg flex items-center justify-center">
+                        <span className="text-green-400 text-lg">🏁</span>
+                  </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Team Filters</h3>
+                        <p className="text-xs text-green-300">
+                          {selectedTeams.size > 0 ? `${selectedTeams.size} selected` : `${teams.length} teams available`}
+                        </p>
+                  </div>
+                  </div>
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${selectedTeams.size > 0 ? 'bg-green-400' : 'bg-gray-600'}`}></div>
+                      <svg 
+                        className={`w-5 h-5 text-green-400 transition-transform duration-200 ${showTeamFilters ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                  
+                  {showTeamFilters && (
+                    <div className="p-4 space-y-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={selectAllTeams}
+                          className="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={clearAllTeams}
+                          className="flex-1 px-3 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      
+                      <div className="max-h-48 overflow-y-auto space-y-2 custom-scrollbar">
+                        {teams.length > 0 ? (
+                          teams.map((team) => (
+                            <label 
+                              key={team.team_id} 
+                              className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-green-900/20 group ${
+                                selectedTeams.has(team.team_name) ? 'bg-green-900/30 border border-green-700/50' : 'hover:border-green-700/30 border border-transparent'
+                              }`}
+                            >
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTeams.has(team.team_name)}
+                                  onChange={() => toggleTeam(team.team_name)}
+                                  className="w-4 h-4 rounded border-2 border-green-600 bg-gray-800 text-transparent focus:ring-green-500 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <span className={`text-sm font-medium transition-colors duration-200 ${
+                                  selectedTeams.has(team.team_name) 
+                                    ? 'text-green-200' 
+                                    : 'text-gray-300 group-hover:text-white'
+                                }`}>
+                                  {team.team_name}
+                    </span>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {team.team_nationality} • Est. {team.first_appearance}
+                  </div>
+                              </div>
+                              {selectedTeams.has(team.team_name) && (
+                                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              )}
+                            </label>
+                          ))
+                        ) : (
+                          <div className="text-center py-4">
+                            <div className="w-6 h-6 bg-green-600/20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                              <span className="text-green-400">⏳</span>
+                            </div>
+                            <div className="text-xs text-gray-500">Loading teams...</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+                </div>
+              </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Main content area - News articles */}
+          <div className="lg:col-span-3">
+            {/* Articles Layout */}
+            {filteredArticles.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">
+                  No news articles found for the selected filter.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Featured Article (First article gets special treatment) */}
+                {filteredArticles.length > 0 && (
+                  <div className="bg-card rounded-lg border shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
+                    <div className="p-8">
+                      {/* Article Type Badge */}
+                      <div className="flex items-center justify-between mb-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          filteredArticles[0].type === 'driver' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {filteredArticles[0].type === 'driver' ? 'Driver' : 'Team'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(filteredArticles[0].published_at)}
+                        </span>
+                      </div>
+
+                      {/* Entity Name */}
+                      <h3 className="text-lg font-medium text-muted-foreground mb-3">
+                        {filteredArticles[0].entityName}
+                      </h3>
+
+                      {/* Article Title */}
+                      <h2 className="text-3xl font-bold mb-4 text-foreground leading-tight">
+                        {filteredArticles[0].title}
+                      </h2>
+
+                      {/* Article Content */}
+                      <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                        {filteredArticles[0].news}
+                      </p>
+
+                      {/* Source */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          Source: {filteredArticles[0].source}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regular Articles Grid */}
+                {filteredArticles.length > 1 && (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredArticles.slice(1).map((article, index) => {
+                      // Create different sizes based on index for visual variety
+                      const isLarge = index % 5 === 0; // Every 5th article is larger
+                      const isMedium = index % 3 === 0; // Every 3rd article is medium
+                      
+                      return (
+                        <div 
+                          key={`${article.type}-${article.entityName}-${index}`}
+                          className={`bg-card rounded-lg border shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden ${
+                            isLarge ? 'md:col-span-2 lg:col-span-2' : ''
+                          }`}
+                        >
+                          <div className={`${isLarge ? 'p-8' : isMedium ? 'p-6' : 'p-5'}`}>
+                            {/* Article Type Badge */}
+                            <div className="flex items-center justify-between mb-3">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                article.type === 'driver' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {article.type === 'driver' ? 'Driver' : 'Team'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(article.published_at)}
+                              </span>
+                            </div>
+
+                            {/* Entity Name */}
+                            <h3 className={`font-medium text-muted-foreground mb-2 ${
+                              isLarge ? 'text-base' : 'text-sm'
+                            }`}>
+                              {article.entityName}
+                            </h3>
+
+                            {/* Article Title */}
+                            <h2 className={`font-semibold mb-3 text-foreground line-clamp-2 ${
+                              isLarge ? 'text-xl' : isMedium ? 'text-lg' : 'text-base'
+                            }`}>
+                              {article.title}
+                            </h2>
+
+                            {/* Article Content */}
+                            <p className={`text-muted-foreground mb-4 line-clamp-4 ${
+                              isLarge ? 'text-base' : 'text-sm'
+                            }`}>
+                              {article.news}
+                            </p>
+
+                            {/* Source */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">
+                                Source: {article.source}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar - Hidden on mobile, shown on desktop */}
+          <div className="hidden lg:block lg:col-span-1">
+            <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar space-y-6">
+
+              {/* Driver Filters */}
+              <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+                <div 
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-900/20 to-blue-800/20 border-b border-blue-800/30 cursor-pointer hover:from-blue-900/30 hover:to-blue-800/30 transition-all duration-200"
+                  onClick={() => setShowDriverFilters(!showDriverFilters)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-400 text-lg">🏎️</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Driver Filters</h3>
+                      <p className="text-xs text-blue-300">
+                        {selectedDrivers.size > 0 ? `${selectedDrivers.size} selected` : `${drivers.length} drivers available`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${selectedDrivers.size > 0 ? 'bg-blue-400' : 'bg-gray-600'}`}></div>
+                    <svg 
+                      className={`w-5 h-5 text-blue-400 transition-transform duration-200 ${showDriverFilters ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                
+                {showDriverFilters && (
+                  <div className="p-4 space-y-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAllDrivers}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={clearAllDrivers}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    
+                    <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar">
+                      {drivers.length > 0 ? (
+                        drivers.map((driver) => (
+                          <label 
+                            key={driver.driver_number} 
+                            className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-blue-900/20 group ${
+                              selectedDrivers.has(driver.full_name) ? 'bg-blue-900/30 border border-blue-700/50' : 'hover:border-blue-700/30 border border-transparent'
+                            }`}
+                          >
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={selectedDrivers.has(driver.full_name)}
+                                onChange={() => toggleDriver(driver.full_name)}
+                                className="w-4 h-4 rounded border-2 border-blue-600 bg-gray-800 text-transparent focus:ring-blue-500 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <span className={`text-sm font-medium transition-colors duration-200 ${
+                                selectedDrivers.has(driver.full_name) 
+                                  ? 'text-blue-200' 
+                                  : 'text-gray-300 group-hover:text-white'
+                              }`}>
+                                {driver.full_name}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                #{driver.driver_number} • {driver.team_name}
+                              </div>
+                            </div>
+                            {selectedDrivers.has(driver.full_name) && (
+                              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                            )}
+                          </label>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                            <span className="text-blue-400">⏳</span>
+                          </div>
+                          <div className="text-sm text-gray-500">Loading drivers...</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Team Filters */}
+              <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
+                <div 
+                  className="flex items-center justify-between p-4 bg-gradient-to-r from-green-900/20 to-green-800/20 border-b border-green-800/30 cursor-pointer hover:from-green-900/30 hover:to-green-800/30 transition-all duration-200"
+                  onClick={() => setShowTeamFilters(!showTeamFilters)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-green-600/20 rounded-lg flex items-center justify-center">
+                      <span className="text-green-400 text-lg">🏁</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Team Filters</h3>
+                      <p className="text-xs text-green-300">
+                        {selectedTeams.size > 0 ? `${selectedTeams.size} selected` : `${teams.length} teams available`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${selectedTeams.size > 0 ? 'bg-green-400' : 'bg-gray-600'}`}></div>
+                    <svg 
+                      className={`w-5 h-5 text-green-400 transition-transform duration-200 ${showTeamFilters ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                
+                {showTeamFilters && (
+                  <div className="p-4 space-y-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAllTeams}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={clearAllTeams}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    
+                    <div className="max-h-64 overflow-y-auto space-y-2 custom-scrollbar">
+                      {teams.length > 0 ? (
+                        teams.map((team) => (
+                          <label 
+                            key={team.team_id} 
+                            className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-green-900/20 group ${
+                              selectedTeams.has(team.team_name) ? 'bg-green-900/30 border border-green-700/50' : 'hover:border-green-700/30 border border-transparent'
+                            }`}
+                          >
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={selectedTeams.has(team.team_name)}
+                                onChange={() => toggleTeam(team.team_name)}
+                                className="w-4 h-4 rounded border-2 border-green-600 bg-gray-800 text-transparent focus:ring-green-500 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-200"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <span className={`text-sm font-medium transition-colors duration-200 ${
+                                selectedTeams.has(team.team_name) 
+                                  ? 'text-green-200' 
+                                  : 'text-gray-300 group-hover:text-white'
+                              }`}>
+                                {team.team_name}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                {team.team_nationality} • Est. {team.first_appearance}
+                              </div>
+                            </div>
+                            {selectedTeams.has(team.team_name) && (
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            )}
+                          </label>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="w-8 h-8 bg-green-600/20 rounded-lg flex items-center justify-center mx-auto mb-2">
+                            <span className="text-green-400">⏳</span>
+                          </div>
+                          <div className="text-sm text-gray-500">Loading teams...</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Main content area - News articles */}
+          <div className="lg:col-span-3">
+            {/* Articles Layout */}
+            {filteredArticles.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">
+                  No news articles found for the selected filter.
+                </p>
+        </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Featured Article (First article gets special treatment) */}
+                {filteredArticles.length > 0 && (
+                  <div className="bg-card rounded-lg border shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
+                    <div className="p-8">
+                      {/* Article Type Badge */}
+                      <div className="flex items-center justify-between mb-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          filteredArticles[0].type === 'driver' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {filteredArticles[0].type === 'driver' ? 'Driver' : 'Team'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(filteredArticles[0].published_at)}
+                        </span>
+                      </div>
+
+                      {/* Entity Name */}
+                      <h3 className="text-lg font-medium text-muted-foreground mb-3">
+                        {filteredArticles[0].entityName}
+                      </h3>
+
+                      {/* Article Title */}
+                      <h2 className="text-3xl font-bold mb-4 text-foreground leading-tight">
+                        {filteredArticles[0].title}
+                      </h2>
+
+                      {/* Article Content */}
+                      <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                        {filteredArticles[0].news}
+                      </p>
+
+                      {/* Source */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          Source: {filteredArticles[0].source}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regular Articles Grid */}
+                {filteredArticles.length > 1 && (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredArticles.slice(1).map((article, index) => {
+                      // Create different sizes based on index for visual variety
+                      const isLarge = index % 5 === 0; // Every 5th article is larger
+                      const isMedium = index % 3 === 0; // Every 3rd article is medium
+                      
+                      return (
+                        <div 
+                          key={`${article.type}-${article.entityName}-${index}`}
+                          className={`bg-card rounded-lg border shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden ${
+                            isLarge ? 'md:col-span-2 lg:col-span-2' : ''
+                          }`}
+                        >
+                          <div className={`${isLarge ? 'p-8' : isMedium ? 'p-6' : 'p-5'}`}>
+                            {/* Article Type Badge */}
+                            <div className="flex items-center justify-between mb-3">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                article.type === 'driver' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {article.type === 'driver' ? 'Driver' : 'Team'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(article.published_at)}
+                              </span>
+                            </div>
+
+                            {/* Entity Name */}
+                            <h3 className={`font-medium text-muted-foreground mb-2 ${
+                              isLarge ? 'text-base' : 'text-sm'
+                            }`}>
+                              {article.entityName}
+                            </h3>
+
+                            {/* Article Title */}
+                            <h2 className={`font-semibold mb-3 text-foreground line-clamp-2 ${
+                              isLarge ? 'text-xl' : isMedium ? 'text-lg' : 'text-base'
+                            }`}>
+                              {article.title}
+                            </h2>
+
+                            {/* Article Content */}
+                            <p className={`text-muted-foreground mb-4 line-clamp-4 ${
+                              isLarge ? 'text-base' : 'text-sm'
+                            }`}>
+                              {article.news}
+                            </p>
+
+                            {/* Source */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">
+                                Source: {article.source}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+
         </div>
       </div>
     </div>
   );
 }
-

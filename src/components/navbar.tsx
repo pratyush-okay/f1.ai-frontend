@@ -15,6 +15,8 @@ export function Navbar() {
     } else if (value === "teams") {
       router.push("/teams");
     } else if (value === "drivers") {
+      router.push("/drivers");
+    } else if (value === "ai-news") {
       router.push("/");
     }
     setIsMenuOpen(false); // Close menu after navigation
@@ -23,7 +25,8 @@ export function Navbar() {
   const getCurrentTab = () => {
     if (pathname === "/about") return "formula1";
     if (pathname === "/teams") return "teams";
-    return "drivers"; // Home page (/) is now drivers, so default to drivers
+    if (pathname === "/drivers") return "drivers";
+    return "ai-news"; // Home page (/) is now AI News, so default to ai-news
   };
 
   const toggleMenu = () => {
@@ -98,7 +101,14 @@ export function Navbar() {
           {/* Desktop Navigation Tabs */}
           <div className="hidden md:block relative">
             <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-auto">
-              <TabsList className="grid w-full grid-cols-3 bg-background/50 backdrop-blur-sm border border-border/50 shadow-lg">
+              <TabsList className="grid w-full grid-cols-4 bg-background/50 backdrop-blur-sm border border-border/50 shadow-lg">
+                <TabsTrigger 
+                  value="ai-news" 
+                  className="px-4 relative overflow-hidden transition-all duration-300 hover:scale-105 data-[state=active]:bg-red-500/10 data-[state=active]:text-red-500 data-[state=active]:shadow-lg"
+                >
+                  <span className="relative z-10">AI News</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-orange-500/5 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
+                </TabsTrigger>
                 <TabsTrigger 
                   value="drivers" 
                   className="px-4 relative overflow-hidden transition-all duration-300 hover:scale-105 data-[state=active]:bg-red-500/10 data-[state=active]:text-red-500 data-[state=active]:shadow-lg"
@@ -145,6 +155,12 @@ export function Navbar() {
           <div className="md:hidden mt-4 pb-4">
             <div className="bg-background/95 backdrop-blur-sm border border-border/50 rounded-lg shadow-lg overflow-hidden">
               <div className="flex flex-col">
+                <button
+                  onClick={() => handleTabChange("ai-news")}
+                  className={`px-4 py-3 text-left transition-colors duration-300 hover:bg-red-500/10 ${getCurrentTab() === "ai-news" ? "bg-red-500/10 text-red-500" : "hover:text-red-500"}`}
+                >
+                  <span className="font-medium">AI News</span>
+                </button>
                 <button
                   onClick={() => handleTabChange("drivers")}
                   className={`px-4 py-3 text-left transition-colors duration-300 hover:bg-red-500/10 ${getCurrentTab() === "drivers" ? "bg-red-500/10 text-red-500" : "hover:text-red-500"}`}
